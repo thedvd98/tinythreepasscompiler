@@ -96,10 +96,15 @@ let put_parens tokens op =
 
 
     | a::SymOp(x)::b::tail when x = op ->
-      let newexp = SymExp(
-          (put_paren [a] op true) @ [SymOp(x)] @ (put_paren [b] op true)
-        ) in
-      (put_paren (newexp::tail) op true)
+      if recsubexp = false then
+        let newexp = (put_paren [a] op true) @ [SymOp(x)] @ (put_paren [b] op true) in
+        (put_paren (newexp::tail) op true)
+      else
+        let newexp = SymExp(
+            (put_paren [a] op true) @ [SymOp(x)] @ (put_paren [b] op true)
+          ) in
+        (put_paren (newexp::tail) op true)
+
 
     | SymExp(a)::SymOp(x)::b::tail when x != op ->
       (put_paren [SymExp(a)] op true)@SymOp(x)::(put_paren (b::tail) op true)
