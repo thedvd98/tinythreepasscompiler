@@ -47,7 +47,7 @@ let suite_subexp_parens =
   ; "13.", `Quick, test_parens "+" "((a + (1+2) - r)+a + c)" (tokenize "((((a + (1+2)) - r) + a) + c)" |> scan)
   ; "14.", `Quick, test_parens "*" "(a * b * c)" (tokenize "((a*b) * c)" |> scan)
   ; "15.", `Quick, test_parens "*" "(a * b * c * d)" (tokenize "(((a*b) * c) * d)" |> scan)
-  ; "16.", `Quick, test_parens "*" "((a * b * c * d))" (tokenize "((((a*b) * c) * d))" |> scan)
+  ; "16.", `Quick, test_parens "*" "((a * b * c * d))" (tokenize "(((a*b) * c) * d)" |> scan)
   ]
 
 let () =

@@ -67,15 +67,19 @@ let rec scan tokens = match tokens with
   | hd::tail -> SymOp(hd)::(scan tail)
 
 let put_parens tokens op =
-  let rec put_paren (tokens : expression list) (op: string) (recsubexp:bool) = match tokens with
+  let rec put_paren (tokens : expression list) (op: string) (recsubexp:bool) : expression list = match tokens with
     | [] -> []
     | [SymExp(sub_exp)] ->
-      let len = List.length sub_exp in
-      if len = 1 || len = 3 then
-        SymExp(put_paren sub_exp op false)::[]
+      let result = (put_paren sub_exp op true) in
+      let value: bool = (match result with
+          | [] -> true
+          | [SymExp(_)]-> false
+          | _ -> true)
+      in
+      if value = true then
+        [SymExp(result)]
       else
-        let newexp = SymExp((put_paren sub_exp op true)) in
-        [newexp]
+        result
 
     | [SymNumber(x)] -> [SymNumber(x)]
     | [SymVar(x)] -> [SymVar(x)]
@@ -94,9 +98,8 @@ let put_parens tokens op =
         (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp)
 
     | a::SymOp(x)::b::tail when x = op ->
-      let newexp = SymExp(
-          (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp)
-        ) in
+      let result = (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp) in
+      let newexp = SymExp(result) in
       (put_paren (newexp::tail) op recsubexp)
 
     | SymExp(a)::SymOp(x)::b::tail when x != op ->
@@ -107,11 +110,7 @@ let put_parens tokens op =
       arg1 @ [SymOp(x)] @ (put_paren (b::tail) op recsubexp)
     | _ -> [SymVar("Error3")]
   in
-  let result = put_paren tokens op true in
-  (match result with
-  | [SymExp([SymExp(x)])] -> [SymExp(x)]
-  | x -> x
-  )
+  put_paren tokens op true
 
 let rec string_of_expr (expr : expression list): string = match expr with
   | [] -> ""
