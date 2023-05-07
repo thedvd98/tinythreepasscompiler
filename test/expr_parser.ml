@@ -36,17 +36,12 @@ let suite_subexp_parens =
   ; "2.", `Quick, test_parens "+" "((a + b)+a)" (tokenize "((a + b) + a)" |> scan)
   ; "3.", `Quick, test_parens "+" "(a * (b+a))" (tokenize "(a * (b + a))" |> scan)
   ; "4.", `Quick, test_parens "+" "(a + (b+a))" (tokenize "(a + (b + a))" |> scan)
-  ; "2.", `Quick, test_parens "+" "((a + b)+a + c)" (tokenize "(((a + b) + a) + c)" |> scan)
-  ; "5.", `Quick, test_parens "+" "((1 + 4 + 3) +a)" (tokenize "(((1 + 4) + 3) + a)" |> scan)
-  ; "6.", `Quick, test_parens "+" "(a + ((1 + 4 + 3) +a))" (tokenize "(a + (((1 + 4) + 3) + a))" |> scan)
+  ; "5.", `Quick, test_parens "+" "(a + (b+a-1+3))" (tokenize "(a + ((b + a) - (1+3)))" |> scan)
+  ; "6.", `Quick, test_parens "+" "a + (b+a-1+3)" (tokenize "(a + ((b + a) - (1+3)))" |> scan)
+  ; "7.", `Quick, test_parens "+" "((a + b)+a + c)" (tokenize "(((a + b) + a) + c)" |> scan)
+  ; "8.", `Quick, test_parens "+" "((1 + 4 + 3) +a)" (tokenize "(((1 + 4) + 3) + a)" |> scan)
+  ; "9.", `Quick, test_parens "+" "(a + ((1 + 4 + 3) +a))" (tokenize "(a + (((1 + 4) + 3) + a))" |> scan)
   ]
-
-(* let suite_parens = *)
-(*   [ "1.", `Quick, test_parens "1" "1" *)
-(*   ; "2.", `Quick, test_parens "1 + a" "1+a" *)
-(*   ; "3.", `Quick, test_parens "(1)" "(1)" *)
-(*   ] *)
-
 
 let () =
   Alcotest.run "Dummy" [ "tokenize", suite
