@@ -69,23 +69,34 @@ let rec scan tokens = match tokens with
 let put_parens tokens op =
   let rec put_paren (tokens : expression list) op recsubexp = match tokens with
     | [] -> []
-    | [x] -> x::[]
+
+    | SymExp(a)::SymOp(x)::(SymExp(b))::tail when x = op ->
+      let newexp = SymExp([SymExp(put_paren a op true); SymOp(x); SymExp(put_paren b op true)]) in
+      (put_paren (newexp::tail) op false)
+    | SymExp(a)::SymOp(x)::b::tail when x = op ->
+      let newexp = SymExp([SymExp(put_paren a op true); SymOp(x); b]) in
+      (put_paren (newexp::tail) op false)
+    | a::SymOp(x)::SymExp(b)::tail when x = op ->
+      let newexp = SymExp([a; SymOp(x); SymExp(put_paren b op true)]) in
+      (put_paren (newexp::tail) op false)
     | a::SymOp(x)::b::tail when x = op ->
       let newexp = SymExp([a; SymOp(x); b]) in
       (put_paren (newexp::tail) op false)
 
-    | SymExp(a)::SymOp(x)::b::tail when x != op ->
-      (put_paren [SymExp(a)] op recsubexp)@SymOp(x)::(put_paren (b::tail) op recsubexp)
+    (* | SymExp(a)::SymOp(x)::b::tail when x != op -> *)
+    (*   (put_paren [SymExp(a)] op recsubexp)@SymOp(x)::(put_paren (b::tail) op recsubexp) *)
 
-    | a::SymOp(x)::b::tail when x != op -> a::SymOp(x)::(put_paren (b::tail) op recsubexp)
+    | a::SymOp(x)::b::tail when x != op ->
+      a::SymOp(x)::(put_paren (b::tail) op recsubexp)
 
-    | SymExp(sub_exp)::tail when recsubexp = true ->
-      let newexp = SymExp((put_paren sub_exp op recsubexp)) in
-      (put_paren (newexp::tail) op false)
+    (* | SymExp(sub_exp)::tail when recsubexp = true -> *)
+    (*   let newexp = SymExp((put_paren sub_exp op recsubexp)) in *)
+    (*   (put_paren (newexp::tail) op false) *)
 
-    | SymExp(sub_exp)::tail when recsubexp = false ->
-      SymExp(sub_exp)::(put_paren tail op true)
-    |_ -> []
+    (* | SymExp(sub_exp)::tail when recsubexp = false -> *)
+    (*   SymExp(sub_exp)::(put_paren tail op true) *)
+    |[x] -> [x]
+    | hd::tail -> hd::tail
   in
   put_paren tokens op true;;
 
