@@ -1,10 +1,3 @@
 (test
  (name expr_parser)
  (libraries alcotest exprparser))
-
-(rule
- (alias runtest)
- (action
-   (run test.exe --show-errors)
- )
-)

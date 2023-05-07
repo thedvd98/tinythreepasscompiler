@@ -37,12 +37,14 @@ let suite_subexp_parens =
   ; "3.", `Quick, test_parens "+" "(a * (b+a))" (tokenize "(a * (b + a))" |> scan)
   ; "4.", `Quick, test_parens "+" "(a + (b+a))" (tokenize "(a + (b + a))" |> scan)
   ; "5.", `Quick, test_parens "+" "(a + (b+a-1+3))" (tokenize "(a + ((b + a) - (1+3)))" |> scan)
+  ; "6.", `Quick, test_parens "+" "(a + (b+a-1+3 * 4 + (2)))" (tokenize "(a + ((b + a) - (1+3) * (4+(2))))" |> scan)
   ; "7.", `Quick, test_parens "+" "((a + b)+a + c)" (tokenize "(((a + b) + a) + c)" |> scan)
   ; "8.", `Quick, test_parens "+" "((1 + 4 + 3) +a)" (tokenize "(((1 + 4) + 3) + a)" |> scan)
   ; "9.", `Quick, test_parens "+" "(a + ((1 + 4 + 3) +a))" (tokenize "(a + (((1 + 4) + 3) + a))" |> scan)
   ; "10.", `Quick, test_parens "*" "((a + b)+a + c)" (tokenize "((a + b) + a + c)" |> scan)
   ; "11.", `Quick, test_parens "*" "((a + b - r)+a + c)" (tokenize "((a + b - r) + a + c)" |> scan)
-  ; "11.", `Quick, test_parens "*" "((a + (1+2) - r)+a + c)" (tokenize "((a + (1+2) - r) + a + c)" |> scan)
+  ; "12.", `Quick, test_parens "*" "((a + (1+2) - r)+a + c)" (tokenize "((a + (1+2) - r) + a + c)" |> scan)
+  ; "13.", `Quick, test_parens "+" "((a + (1+2) - r)+a + c)" (tokenize "((((a + (1+2)) - r) + a) + c)" |> scan)
   ]
 
 let () =

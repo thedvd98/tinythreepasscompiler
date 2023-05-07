@@ -80,32 +80,33 @@ let put_parens tokens op =
 
     | [SymNumber(x)] -> [SymNumber(x)]
     | [SymVar(x)] -> [SymVar(x)]
+                     (* TODO Some error handling *)
     | [SymOp(x)] -> [SymVar("Wrong "^x^" position")]
     | [SymOp(_);SymNumber(_)] -> [SymVar("strange")]
 
     | a::SymOp(x)::b::[] when x = op ->
       if recsubexp = false then
-        (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op true)
+        (put_paren [a] op true) @ [SymOp(x)] @ (put_paren [b] op true)
       else
         [SymExp(
             (put_paren [a] op true) @ [SymOp(x)] @ (put_paren [b] op true)
           )]
     | a::SymOp(x)::b::[] when x != op ->
-        (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp)
+        (put_paren [a] op true) @ [SymOp(x)] @ (put_paren [b] op true)
 
 
     | a::SymOp(x)::b::tail when x = op ->
       let newexp = SymExp(
-          (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp)
+          (put_paren [a] op true) @ [SymOp(x)] @ (put_paren [b] op true)
         ) in
       (put_paren (newexp::tail) op true)
 
     | SymExp(a)::SymOp(x)::b::tail when x != op ->
-      (put_paren [SymExp(a)] op recsubexp)@SymOp(x)::(put_paren (b::tail) op recsubexp)
+      (put_paren [SymExp(a)] op true)@SymOp(x)::(put_paren (b::tail) op true)
 
     | a::SymOp(x)::b::tail when x != op ->
       let arg1 = (put_paren [a] op true) in
-      arg1 @ [SymOp(x)] @ (put_paren (b::tail) op recsubexp)
+      arg1 @ [SymOp(x)] @ (put_paren (b::tail) op true)
     | [x] -> [x]
     | _ -> [SymVar("Error3")]
   in
