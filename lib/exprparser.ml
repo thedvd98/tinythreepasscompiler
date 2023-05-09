@@ -36,6 +36,10 @@ type expression =
   | SymNumber of string
   | SymExp of (expression list)
 
+exception AstGeneration of string
+exception Optimization of string
+exception ParserError of string
+
 let is_number tk : bool=
   List.fold_left (fun acc ch -> let code = Char.code ch in
                    if (code >= 48 && code <= 57) || ch = '.' then (true && acc)
@@ -67,51 +71,32 @@ let rec scan tokens = match tokens with
   | hd::_ when hd = ")" -> []
   | hd::tail -> SymOp(hd)::(scan tail)
 
-let put_parens tokens op =
-  let rec put_paren (tokens : expression list) (op: string) (recsubexp:bool) : expression list = match tokens with
-    | [] -> []
-    | [SymExp(sub_exp)] ->
-      let result = (put_paren sub_exp op true) in
-      let value: bool = (match result with
-          | [] -> true
-          | [SymExp(_)]-> false
-          | _ -> true)
-      in
-      if value = true then
-        [SymExp(result)]
-      else
-        result
+let rec put_parens (tokens : expression list) (op: string) : expression list = match tokens with
+  | [] -> []
+  | [SymExp(sub_exp)] ->
+    (match (put_parens sub_exp op) with
+     | [SymExp(_)] as exp -> exp
+     | ([] | _ as x) -> [SymExp(x)])
 
-    | [SymNumber(x)] -> [SymNumber(x)]
-    | [SymVar(x)] -> [SymVar(x)]
-                     (* TODO Some error handling *)
-    | [SymOp(x)] -> [SymVar("Wrong "^x^" position")]
-    | [SymOp(_);SymNumber(_)] -> [SymVar("strange")]
+  | ([SymNumber(_)] | [SymVar(_)] as symbol) -> symbol
+  | [SymOp(_)] -> raise (ParserError "Operator in a wrong place ")
+  | [SymOp(_);SymNumber(_)] -> raise (ParserError "strange")
 
-    | a::SymOp(x)::b::[] when x = op ->
-      if recsubexp = false then
-        (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp)
-      else
-        [SymExp(
-            (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp)
-          )]
-    | a::SymOp(x)::b::[] when x != op ->
-        (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp)
+  | a::SymOp(x)::b::[] when x = op ->
+    [SymExp((put_parens [a] op) @ [SymOp(x)] @ (put_parens [b] op))]
+  | a::SymOp(x)::b::[] when x != op ->
+    (put_parens [a] op) @ [SymOp(x)] @ (put_parens [b] op)
 
-    | a::SymOp(x)::b::tail when x = op ->
-      let result = (put_paren [a] op recsubexp) @ [SymOp(x)] @ (put_paren [b] op recsubexp) in
-      let newexp = SymExp(result) in
-      (put_paren (newexp::tail) op recsubexp)
+  | a::SymOp(x)::b::tail when x = op ->
+    let newexp = SymExp((put_parens [a] op) @ [SymOp(x)] @ (put_parens [b] op)) in
+    (put_parens (newexp::tail) op)
 
-    | SymExp(a)::SymOp(x)::b::tail when x != op ->
-      (put_paren [SymExp(a)] op recsubexp)@SymOp(x)::(put_paren (b::tail) op recsubexp)
+  | SymExp(a)::SymOp(x)::b::tail when x != op ->
+    (put_parens [SymExp(a)] op)@SymOp(x)::(put_parens (b::tail) op)
 
-    | a::SymOp(x)::b::tail when x != op ->
-      let arg1 = (put_paren [a] op recsubexp) in
-      arg1 @ [SymOp(x)] @ (put_paren (b::tail) op recsubexp)
-    | _ -> [SymVar("Error3")]
-  in
-  put_paren tokens op true
+  | a::SymOp(x)::b::tail when x != op ->
+    (put_parens [a] op) @ [SymOp(x)] @ (put_parens (b::tail) op)
+  | _ -> raise (ParserError "Error Wrong symbol inserted")
 
 
 let precedence_parens (symbols: expression list) =
@@ -129,15 +114,13 @@ let test (expr: string) :string =
 
 
 type ast =
- | Imm of int  (* immediate value *)
- | Arg of string (* reference to n-th argument *)
- | Add of (ast * ast) (* add first to second *)
- | Sub of (ast * ast) (* subtract second from first *)
- | Mul of (ast * ast) (* multiply first by second *)
- | Div of (ast * ast) (* divide first by second *)
+  | Imm of int  (* immediate value *)
+  | Arg of string (* reference to n-th argument *)
+  | Add of (ast * ast) (* add first to second *)
+  | Sub of (ast * ast) (* subtract second from first *)
+  | Mul of (ast * ast) (* multiply first by second *)
+  | Div of (ast * ast) (* divide first by second *)
 
-exception AstGeneration of string
-exception Optimization of string
 
 let rec generate_ast (symbols: expression): ast = match symbols with
   | SymExp([]) -> Imm(0)
