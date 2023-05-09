@@ -37,14 +37,15 @@ type expression =
   | SymExp of (expression list)
 
 let is_number tk : bool=
-  String.for_all (fun ch -> let code = Char.code ch in
-                   if (code >= 48 && code <= 57) || ch = '.' then true
-                   else false) tk;;
+  List.fold_left (fun acc ch -> let code = Char.code ch in
+                   if (code >= 48 && code <= 57) || ch = '.' then (true && acc)
+                   else false) true (tk |> String.to_seq |> List.of_seq);;
+
 let is_variable tk : bool=
-  String.for_all (fun ch ->
+  List.fold_left (fun acc ch ->
       let code = Char.code ch in
-      if (code >= 97 && code <= 122) || (code >= 65 && code <= 90) then true
-      else false) tk;;
+      if (code >= 97 && code <= 122) || (code >= 65 && code <= 90) then (true && acc)
+      else false) true (tk |> String.to_seq |> List.of_seq);;
 
 let tail_after_closing_paren li =
   (* make it start from n = 1 *)
@@ -112,6 +113,10 @@ let put_parens tokens op =
   in
   put_paren tokens op true
 
+
+let precedence_parens (symbols: expression list) =
+  List.fold_left put_parens symbols ["*"; "/"; "+"; "-"]
+
 let rec string_of_expr (expr : expression list): string = match expr with
   | [] -> ""
   | SymNumber(x)::tail -> x^(string_of_expr tail)
@@ -119,3 +124,58 @@ let rec string_of_expr (expr : expression list): string = match expr with
   | SymOp(x)::tail -> x^(string_of_expr tail)
   | SymExp(x)::tail -> "("^(string_of_expr x)^")"^(string_of_expr tail)
 
+let test (expr: string) :string =
+  tokenize expr |> scan |> precedence_parens |> string_of_expr;;
+
+
+type ast =
+ | Imm of int  (* immediate value *)
+ | Arg of string (* reference to n-th argument *)
+ | Add of (ast * ast) (* add first to second *)
+ | Sub of (ast * ast) (* subtract second from first *)
+ | Mul of (ast * ast) (* multiply first by second *)
+ | Div of (ast * ast) (* divide first by second *)
+
+exception AstGeneration of string
+exception Optimization of string
+
+let rec generate_ast (symbols: expression): ast = match symbols with
+  | SymExp([]) -> Imm(0)
+  | SymNumber(n) -> Imm(int_of_string n)
+  | SymVar(a) -> Arg(a)
+  | SymExp(a::SymOp("*")::b::[]) -> Mul((generate_ast a), (generate_ast b))
+  | SymExp(a::SymOp("/")::b::[]) -> Div((generate_ast a), (generate_ast b))
+  | SymExp(a::SymOp("+")::b::[]) -> Add((generate_ast a), (generate_ast b))
+  | SymExp(a::SymOp("-")::b::[]) -> Sub((generate_ast a), (generate_ast b))
+  | SymExp(a::[]) -> (generate_ast a)
+  | _ -> raise (AstGeneration "not recognized symbol in ast generation")
+
+
+let test1 (expr: string) =
+  let result = tokenize expr |> scan |> precedence_parens in
+  (match result with
+   | [] ->  None
+   | [e] -> Some(generate_ast e)
+   | _ -> None
+  )
+
+let rec optimize_ast (ast_tree: ast) = match ast_tree with
+  | (Imm _ | Arg _) as e -> e
+  | Add(Imm(a), Imm(b)) -> (Imm(a+b))
+  | Sub(Imm(a), Imm(b)) -> (Imm(a-b))
+  | Mul(Imm(a), Imm(b)) -> (Imm(a*b))
+  | Div(Imm(a), Imm(b)) -> (Imm(a/b))
+  | Add(a, b) -> optimize_ast (Add((optimize_ast a), (optimize_ast b)))
+  | Sub(a, b) -> optimize_ast (Sub((optimize_ast a), (optimize_ast b)))
+  | Mul(a, b) -> optimize_ast (Mul((optimize_ast a), (optimize_ast b)))
+  | Div(a, (Arg _ as e)) -> (Div((optimize_ast a), e))
+  | Div((Arg _ as e), b) -> (Div(e, (optimize_ast b)))
+  | Div(a, b) -> optimize_ast (Div((optimize_ast a), (optimize_ast b)))
+
+let test2 (expr: string) =
+  let result = tokenize expr |> scan |> precedence_parens in
+  (match result with
+   | [] ->  None
+   | [e] -> Some(optimize_ast(generate_ast e))
+   | _ -> None
+  )
