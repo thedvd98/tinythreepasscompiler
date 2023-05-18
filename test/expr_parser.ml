@@ -5,6 +5,8 @@ let expr_pp ppf e = Fmt.pf ppf "%s" (string_of_expr e)
 let expr_equal a b = (a = b);;
 let expr_testable = Alcotest.testable expr_pp expr_equal
 
+let ast_testable = Alcotest.testable (fun ppf e -> Fmt.pf ppf "%s" (string_of_ast e)) (fun a b -> (a = b));;
+
 let test_tokenize input expected () =
   let output = tokenize input in
   check (list string) "same" output expected;;
@@ -12,6 +14,14 @@ let test_tokenize input expected () =
 let test_parens op input expected () =
   let output = put_parens (tokenize input |> scan) op in
   check (expr_testable) "fuck" expected output;;
+
+let test_optimize_ast input expected () =
+  let output = (tokenize input |> scan |> precedence_parens) in
+  let optimized = optimize_ast(generate_ast (List.hd output)) in
+  check (ast_testable) "ast error" expected optimized
+
+let ast_of_string input =
+  (tokenize input |> scan |> List.hd |> generate_ast)
 
 let suite =
   [ "basic", `Quick, test_tokenize "1 + 2" ["1"; "+"; "2"]
@@ -50,9 +60,19 @@ let suite_subexp_parens =
   ; "16.", `Quick, test_parens "*" "((a * b * c * d))" (tokenize "(((a*b) * c) * d)" |> scan)
   ]
 
+
+let suite_optmize_ast =
+  [ "0.", `Quick, test_optimize_ast "1 + 1 + 1" (Imm(3))
+  ; "1.", `Quick, test_optimize_ast "a" (Arg("a"))
+  ; "2.", `Quick, test_optimize_ast "a+b" (Add(Arg("a"), Arg("b")))
+  ; "3.", `Quick, test_optimize_ast "a + 1 +b" (Add(Add(Arg("a"), Imm(1)), Arg("b")))
+  ; "4.", `Quick, test_optimize_ast "(1 + 3) + a + 1 + c" (ast_of_string "4 + a + 1 + c")
+  ]
+
 let () =
   Alcotest.run "Dummy" [ "tokenize", suite
                        ; "easy parenthesis", suite_parens
                        ; "sub expression parenthesis", suite_subexp_parens
+                       ; "ast Optimization", suite_optmize_ast
                        ];
 

@@ -121,6 +121,99 @@ type ast =
   | Mul of (ast * ast) (* multiply first by second *)
   | Div of (ast * ast) (* divide first by second *)
 
+type flat_ast =
+  | FlatImm of int
+  | FlatArg of string
+  | FlatAdd of (flat_ast list)
+  | FlatMul of (flat_ast list)
+  | FlatSub of (flat_ast list)
+  | FlatDiv of (flat_ast list)
+
+let rec flatten = function
+  | Imm(x) -> FlatImm(x)
+  | Arg(x) -> FlatArg(x)
+  | Add(a,b) -> let flattened_a = (flatten a) in
+    let flattened_b = (flatten b) in
+    (match (flattened_a, flattened_b) with
+     | (FlatAdd(x), FlatAdd(y)) -> FlatAdd(x@y)
+     | (x, FlatAdd(y)) -> FlatAdd(x::y)
+     | (FlatAdd(x), y) -> FlatAdd(x@[y])
+     | (x, y) -> FlatAdd([x;y])
+    )
+  | Mul(a,b) -> let flattened_a = (flatten a) in
+    let flattened_b = (flatten b) in
+    (match (flattened_a, flattened_b) with
+     | (FlatMul(x), FlatMul(y)) -> FlatMul(x@y)
+     | (x, FlatMul(y)) -> FlatMul(x::y)
+     | (FlatMul(x), y) -> FlatMul(x@[y])
+     | (x, y) -> FlatMul([x;y])
+    )
+  | Sub(a,b) -> let flattened_a = (flatten a) in
+    let flattened_b = (flatten b) in
+    (match (flattened_a, flattened_b) with
+     | (FlatSub(x), FlatSub(y)) -> FlatSub(x@y)
+     | (x, FlatSub(y)) -> FlatSub(x::y)
+     | (FlatSub(x), y) -> FlatSub(x@[y])
+     | (x, y) -> FlatSub([x;y])
+    )
+  | Div(a,b) -> let flattened_a = (flatten a) in
+    let flattened_b = (flatten b) in
+    (match (flattened_a, flattened_b) with
+     | (FlatDiv(x), FlatDiv(y)) -> FlatDiv(x@y)
+     | (x, FlatDiv(y)) -> FlatDiv(x::y)
+     | (FlatDiv(x), y) -> FlatDiv(x@[y])
+     | (x, y) -> FlatDiv([x;y])
+    )
+
+let flat_get_ints fl_imm =
+  let filter = function
+    | FlatImm(a) -> true
+    | _ -> false
+  in
+  let to_int = function
+    | FlatImm(a) -> a
+    | _ -> 0
+  in
+  (List.map to_int (List.filter filter fl_imm))
+
+let flat_imm_filter_out flat_li =
+  let f = function
+    | FlatImm(_) -> false
+    | _ -> true
+  in
+  (List.filter f flat_li)
+
+let rec optimize_flat = function
+  | (FlatImm(_) | FlatArg(_) as e) -> e
+  | FlatAdd(li) ->
+    let total = List.fold_left (+) 0 (flat_get_ints li) in
+    let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
+    if total = 0 then
+      FlatAdd(remaining_list)
+    else
+      FlatAdd(FlatImm(total)::remaining_list)
+  | FlatMul(li) ->
+    let total = List.fold_left (fun x y-> x*y) 1 (flat_get_ints li) in
+    let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
+    if total = 0 then
+      FlatMul(remaining_list)
+    else
+      FlatMul(FlatImm(total)::remaining_list)
+  | FlatSub(li) ->
+    let total = List.fold_left (-) 0 (flat_get_ints li) in
+    let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
+    if total = 0 then
+      FlatSub(remaining_list)
+    else
+      FlatSub(FlatImm(total)::remaining_list)
+  | FlatDiv(li) ->
+    let total = List.fold_left (/) 0 (flat_get_ints li) in
+    let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
+    if total = 0 then
+      FlatDiv(remaining_list)
+    else
+      FlatDiv(FlatImm(total)::remaining_list)
+;;
 
 let rec generate_ast (symbols: expression): ast = match symbols with
   | SymExp([]) -> Imm(0)
@@ -133,6 +226,10 @@ let rec generate_ast (symbols: expression): ast = match symbols with
   | SymExp(a::[]) -> (generate_ast a)
   | _ -> raise (AstGeneration "not recognized symbol in ast generation")
 
+let t1 = "1 + 2 + 3 + a" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
+let t2 = "1 + 2 * 3 + a" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
+let t3 = "1 + 2 * b * 3 + a - (4 / 2)" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
+let t4 = "1 + 2 + 3 + (a + 10 + 20)" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
 
 let test1 (expr: string) =
   let result = tokenize expr |> scan |> precedence_parens in
@@ -148,11 +245,18 @@ let rec optimize_ast (ast_tree: ast) = match ast_tree with
   | Sub(Imm(a), Imm(b)) -> (Imm(a-b))
   | Mul(Imm(a), Imm(b)) -> (Imm(a*b))
   | Div(Imm(a), Imm(b)) -> (Imm(a/b))
+
+  | Add(Arg _, Arg _) as e -> e
+  | Add((Arg _ as a), b) -> Add(a, (optimize_ast b))
+  | Add(a, (Arg _ as b)) -> Add((optimize_ast a), b)
+
+  | Sub(Arg _, Arg _) as e -> e
+  | Mul(Arg _, Arg _) as e -> e
+  | Div(Arg _, Arg _) as e -> e
+
   | Add(a, b) -> optimize_ast (Add((optimize_ast a), (optimize_ast b)))
   | Sub(a, b) -> optimize_ast (Sub((optimize_ast a), (optimize_ast b)))
   | Mul(a, b) -> optimize_ast (Mul((optimize_ast a), (optimize_ast b)))
-  | Div(a, (Arg _ as e)) -> (Div((optimize_ast a), e))
-  | Div((Arg _ as e), b) -> (Div(e, (optimize_ast b)))
   | Div(a, b) -> optimize_ast (Div((optimize_ast a), (optimize_ast b)))
 
 let test2 (expr: string) =
@@ -162,3 +266,10 @@ let test2 (expr: string) =
    | [e] -> Some(optimize_ast(generate_ast e))
    | _ -> None
   )
+let rec string_of_ast(ast_tree: ast): string = match ast_tree with
+  | Imm(x) -> string_of_int x
+  | Arg(x) -> x
+  | Mul(a, b) -> (string_of_ast a) ^ "*" ^ (string_of_ast b)
+  | Div(a, b) -> (string_of_ast a) ^ "/" ^ (string_of_ast b)
+  | Add(a, b) -> (string_of_ast a) ^ "+" ^ (string_of_ast b)
+  | Sub(a, b) -> (string_of_ast a) ^ "-" ^ (string_of_ast b)
