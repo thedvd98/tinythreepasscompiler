@@ -80,10 +80,10 @@ let rec scan tokens = match tokens with
   | hd::_ when hd = ")" -> []
   | hd::tail -> SymOp(hd)::(scan tail)
 
-let rec put_parens (tokens : expression list) (op: string) : expression list = match tokens with
+let rec put_parens (tokens : expression list) (op: string) (op2: string) : expression list = match tokens with
   | [] -> []
   | [SymExp(sub_exp)] ->
-    (match (put_parens sub_exp op) with
+    (match (put_parens sub_exp op op2) with
      | [SymExp(_)] as exp -> exp
      | ([] | _ as x) -> [SymExp(x)])
 
@@ -93,25 +93,25 @@ let rec put_parens (tokens : expression list) (op: string) : expression list = m
   | [SymOp("+");SymNumber(n)] -> [SymNumber(n)]
   | [SymOp(_);SymNumber(_)] -> raise (ParserError "strange")
 
-  | a::SymOp(x)::b::[] when x = op ->
-    [SymExp((put_parens [a] op) @ [SymOp(x)] @ (put_parens [b] op))]
-  | a::SymOp(x)::b::[] when x != op ->
-    (put_parens [a] op) @ [SymOp(x)] @ (put_parens [b] op)
+  | a::SymOp(x)::b::[] when x = op || x = op2->
+    [SymExp((put_parens [a] op op2) @ [SymOp(x)] @ (put_parens [b] op op2))]
+  | a::SymOp(x)::b::[] when x != op && x != op2 ->
+    (put_parens [a] op op2) @ [SymOp(x)] @ (put_parens [b] op op2)
 
-  | a::SymOp(x)::b::tail when x = op ->
-    let newexp = SymExp((put_parens [a] op) @ [SymOp(x)] @ (put_parens [b] op)) in
-    (put_parens (newexp::tail) op)
+  | a::SymOp(x)::b::tail when x = op || x = op2 ->
+    let newexp = SymExp((put_parens [a] op op2) @ [SymOp(x)] @ (put_parens [b] op op2)) in
+    (put_parens (newexp::tail) op op2)
 
-  | SymExp(a)::SymOp(x)::b::tail when x != op ->
-    (put_parens [SymExp(a)] op)@SymOp(x)::(put_parens (b::tail) op)
+  | SymExp(a)::SymOp(x)::b::tail when x != op && x != op2 ->
+    (put_parens [SymExp(a)] op op2)@SymOp(x)::(put_parens (b::tail) op op2)
 
-  | a::SymOp(x)::b::tail when x != op ->
-    (put_parens [a] op) @ [SymOp(x)] @ (put_parens (b::tail) op)
+  | a::SymOp(x)::b::tail when x != op && x != op2 ->
+    (put_parens [a] op op2) @ [SymOp(x)] @ (put_parens (b::tail) op op2)
   | _ -> raise (ParserError "Error Wrong symbol inserted")
 
 
 let precedence_parens (symbols: expression list) =
-  List.fold_left put_parens symbols ["*"; "/"; "+"; "-"]
+    put_parens (put_parens symbols "*" "/") "+" "-"
 
 let rec string_of_expr (expr : expression list): string = match expr with
   | [] -> ""
