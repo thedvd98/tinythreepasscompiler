@@ -71,7 +71,7 @@ let suite_optmize_ast =
   ; "4.", `Quick, test_optimize_ast "(1 + 3) + a + 1 + c" (ast_of_string "5 + (a + c)")
   ; "5.", `Quick, test_optimize_ast "(1 * 3) + a + 1 + c" (ast_of_string "4 + (a + c)")
   ; "6.", `Quick, test_optimize_ast "(1 * 3 - b) + a + 1 + c" (ast_of_string "(1+((3-b)+(a+c)))")
-  ; "7.", `Quick, test_optimize_ast "(1+20)-10 * 4 +12 / (3 * 2)" (ast_of_string "0 -17")
+  ; "7.", `Quick, test_optimize_ast "(1+20)-10 * 4 +12 / (3 * 2)" (ast_of_string "-17")
   ; "8.", `Quick, test_optimize_ast "10 + 20 - 10 * 2" (ast_of_string "10")
   ]
 

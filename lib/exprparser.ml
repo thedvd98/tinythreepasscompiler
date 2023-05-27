@@ -89,6 +89,8 @@ let rec put_parens (tokens : expression list) (op: string) : expression list = m
 
   | ([SymNumber(_)] | [SymVar(_)] as symbol) -> symbol
   | [SymOp(_)] -> raise (ParserError "Operator in a wrong place ")
+  | [SymOp("-");SymNumber(n)] -> [SymNumber("-"^n)]
+  | [SymOp("+");SymNumber(n)] -> [SymNumber(n)]
   | [SymOp(_);SymNumber(_)] -> raise (ParserError "strange")
 
   | a::SymOp(x)::b::[] when x = op ->
