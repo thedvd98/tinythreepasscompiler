@@ -1,3 +1,12 @@
+(* https://www.codewars.com/kata/5265b0885fda8eac5900093b/train/ocaml *)
+
+module List = struct
+  include List
+  let reduce op li = match li with
+    | [] -> 0
+    | [a] -> a
+    | hd::tail -> List.fold_left op hd tail
+end;;
 let tokenize code =
   let rec explode string =
     if String.length string = 0 then []
@@ -122,6 +131,7 @@ type ast =
   | Div of (ast * ast) (* divide first by second *)
 
 type flat_ast =
+  | Empty
   | FlatImm of int
   | FlatArg of string
   | FlatAdd of (flat_ast list)
@@ -184,35 +194,54 @@ let flat_imm_filter_out flat_li =
   (List.filter f flat_li)
 
 let rec optimize_flat = function
+  | Empty -> Empty
   | (FlatImm(_) | FlatArg(_) as e) -> e
   | FlatAdd(li) ->
-    let total = List.fold_left (+) 0 (flat_get_ints li) in
+    let total = List.reduce (+) (flat_get_ints li) in
     let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
     if total = 0 then
       FlatAdd(remaining_list)
     else
       FlatAdd(FlatImm(total)::remaining_list)
   | FlatMul(li) ->
-    let total = List.fold_left (fun x y-> x*y) 1 (flat_get_ints li) in
+    let total = List.reduce (fun x y-> x*y) (flat_get_ints li) in
     let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
     if total = 0 then
       FlatMul(remaining_list)
     else
       FlatMul(FlatImm(total)::remaining_list)
   | FlatSub(li) ->
-    let total = List.fold_left (-) 0 (flat_get_ints li) in
+    let total = List.reduce (-) (flat_get_ints li) in
     let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
     if total = 0 then
       FlatSub(remaining_list)
     else
       FlatSub(FlatImm(total)::remaining_list)
   | FlatDiv(li) ->
-    let total = List.fold_left (/) 0 (flat_get_ints li) in
+    let total = List.reduce (/) (flat_get_ints li) in
     let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
     if total = 0 then
       FlatDiv(remaining_list)
     else
       FlatDiv(FlatImm(total)::remaining_list)
+;;
+
+let rec flat_to_ast = function
+  | FlatImm(a) -> Imm(a)
+  | FlatArg(a) -> Arg(a)
+  | FlatAdd([a]) -> (flat_to_ast a)
+  | FlatAdd([a;b]) -> Add((flat_to_ast a), (flat_to_ast b))
+  | FlatAdd(hd::tail) -> Add((flat_to_ast hd), (flat_to_ast (FlatAdd(tail))))
+  | FlatMul([a]) -> (flat_to_ast a)
+  | FlatMul([a;b]) -> Mul((flat_to_ast a), (flat_to_ast b))
+  | FlatMul(hd::tail) -> Mul((flat_to_ast hd), (flat_to_ast (FlatMul(tail))))
+  | FlatDiv([a]) -> (flat_to_ast a)
+  | FlatDiv([a;b]) -> Div((flat_to_ast a), (flat_to_ast b))
+  | FlatDiv(hd::tail) -> Div((flat_to_ast hd), (flat_to_ast (FlatDiv(tail))))
+  | FlatSub([a]) -> (flat_to_ast a)
+  | FlatSub([a;b]) -> Sub((flat_to_ast a), (flat_to_ast b))
+  | FlatSub(hd::tail) -> Sub((flat_to_ast hd), (flat_to_ast (FlatSub(tail))))
+  | _ -> raise (AstGeneration "flat_to_ast empty list or something")
 ;;
 
 let rec generate_ast (symbols: expression): ast = match symbols with
@@ -230,6 +259,7 @@ let t1 = "1 + 2 + 3 + a" |> tokenize |> scan |> precedence_parens |> List.hd |> 
 let t2 = "1 + 2 * 3 + a" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
 let t3 = "1 + 2 * b * 3 + a - (4 / 2)" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
 let t4 = "1 + 2 + 3 + (a + 10 + 20)" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
+let t5 = "1 + 2 + 3" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
 
 let test1 (expr: string) =
   let result = tokenize expr |> scan |> precedence_parens in
@@ -263,13 +293,13 @@ let test2 (expr: string) =
   let result = tokenize expr |> scan |> precedence_parens in
   (match result with
    | [] ->  None
-   | [e] -> Some(optimize_ast(generate_ast e))
+   | [e] -> Some(flat_to_ast (optimize_flat (flatten ((generate_ast e)))))
    | _ -> None
   )
 let rec string_of_ast(ast_tree: ast): string = match ast_tree with
   | Imm(x) -> string_of_int x
   | Arg(x) -> x
-  | Mul(a, b) -> (string_of_ast a) ^ "*" ^ (string_of_ast b)
-  | Div(a, b) -> (string_of_ast a) ^ "/" ^ (string_of_ast b)
-  | Add(a, b) -> (string_of_ast a) ^ "+" ^ (string_of_ast b)
-  | Sub(a, b) -> (string_of_ast a) ^ "-" ^ (string_of_ast b)
+  | Mul(a, b) -> "("^(string_of_ast a) ^ "*" ^ (string_of_ast b)^")"
+  | Div(a, b) -> "("^(string_of_ast a) ^ "/" ^ (string_of_ast b)^")"
+  | Add(a, b) -> "("^(string_of_ast a) ^ "+" ^ (string_of_ast b)^")"
+  | Sub(a, b) -> "("^(string_of_ast a) ^ "-" ^ (string_of_ast b)^")"
