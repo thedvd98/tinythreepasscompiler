@@ -18,7 +18,7 @@ let test_parens op input expected () =
 
 let test_optimize_ast input expected () =
   let output = (tokenize input |> scan |> precedence_parens) in
-  let optimized = (flat_to_ast (optimize_flat (flatten (generate_ast (List.hd output))))) in
+  let optimized = (flat_to_ast (optimize_flat_multiple_times (flatten (generate_ast (List.hd output))))) in
   check (ast_testable) "ast error" expected optimized
 
 let ast_of_string input =
@@ -40,6 +40,7 @@ let suite_parens =
   ; "8.", `Quick, test_parens "*" "1 + a * 2" (tokenize "1 + (a * 2)" |> scan)
   ; "9.", `Quick, test_parens "*" "1 + a * 2 + 10 * a * b" (tokenize "1 + (a * 2) + ((10 * a) * b)" |> scan)
   ; "10.", `Quick, test_parens "*" "1 * 1 * 1 * 1 * 1" (tokenize "((((1*1)*1) * 1) * 1)" |> scan)
+  ; "11.", `Quick, test_parens "*" "-1" [SymNumber("-1")]
   ]
 let suite_subexp_parens =
   [ "0.", `Quick, test_parens "+" "1 + a + b" (tokenize "((1 + a) + b)" |> scan)
@@ -68,7 +69,10 @@ let suite_optmize_ast =
   ; "2.", `Quick, test_optimize_ast "a+b" (Add(Arg("a"), Arg("b")))
   ; "3.", `Quick, test_optimize_ast "a + 1 +b" (ast_of_string "1+(a+b)")
   ; "4.", `Quick, test_optimize_ast "(1 + 3) + a + 1 + c" (ast_of_string "5 + (a + c)")
-  ; "5.", `Quick, test_optimize_ast "(1 * 3) + a + 1 + c" (ast_of_string "4 + a + c")
+  ; "5.", `Quick, test_optimize_ast "(1 * 3) + a + 1 + c" (ast_of_string "4 + (a + c)")
+  ; "6.", `Quick, test_optimize_ast "(1 * 3 - b) + a + 1 + c" (ast_of_string "(1+((3-b)+(a+c)))")
+  ; "7.", `Quick, test_optimize_ast "(1+20)-10 * 4 +12 / (3 * 2)" (ast_of_string "0 -17")
+  ; "8.", `Quick, test_optimize_ast "10 + 20 - 10 * 2" (ast_of_string "10")
   ]
 
 let () =

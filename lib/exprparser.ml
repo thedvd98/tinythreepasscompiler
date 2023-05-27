@@ -131,7 +131,6 @@ type ast =
   | Div of (ast * ast) (* divide first by second *)
 
 type flat_ast =
-  | Empty
   | FlatImm of int
   | FlatArg of string
   | FlatAdd of (flat_ast list)
@@ -194,37 +193,57 @@ let flat_imm_filter_out flat_li =
   (List.filter f flat_li)
 
 let rec optimize_flat = function
-  | Empty -> Empty
   | (FlatImm(_) | FlatArg(_) as e) -> e
   | FlatAdd(li) ->
     let total = List.reduce (+) (flat_get_ints li) in
     let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
-    if total = 0 then
-      FlatAdd(remaining_list)
-    else
-      FlatAdd(FlatImm(total)::remaining_list)
+    (match remaining_list with
+     | [] -> FlatImm(total)
+     | [x] when total = 0 -> x
+     | li when total = 0 -> FlatAdd(li)
+     | li when total != 0 -> FlatAdd(FlatImm(total)::li)
+     | li -> FlatAdd(FlatImm(total)::li)
+    )
   | FlatMul(li) ->
     let total = List.reduce (fun x y-> x*y) (flat_get_ints li) in
     let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
-    if total = 0 then
-      FlatMul(remaining_list)
-    else
-      FlatMul(FlatImm(total)::remaining_list)
+    (match remaining_list with
+     | [] -> FlatImm(total)
+     | [x] when total = 0 -> x
+     | li when total = 0 -> FlatMul(li)
+     | li when total != 0 -> FlatMul(FlatImm(total)::li)
+     | li -> FlatMul(FlatImm(total)::li)
+    )
   | FlatSub(li) ->
     let total = List.reduce (-) (flat_get_ints li) in
     let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
-    if total = 0 then
-      FlatSub(remaining_list)
-    else
-      FlatSub(FlatImm(total)::remaining_list)
+    (match remaining_list with
+     | [] -> FlatImm(total)
+     | [x] when total = 0 -> x
+     | li when total = 0 -> FlatSub(li)
+     | li when total != 0 -> FlatSub(FlatImm(total)::li)
+     | li -> FlatSub(FlatImm(total)::li)
+    )
   | FlatDiv(li) ->
     let total = List.reduce (/) (flat_get_ints li) in
     let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
-    if total = 0 then
-      FlatDiv(remaining_list)
-    else
-      FlatDiv(FlatImm(total)::remaining_list)
+    (match remaining_list with
+     | [] -> FlatImm(total)
+     | [x] when total = 0 -> x
+     | li when total = 0 -> FlatDiv(li)
+     | li when total != 0 -> FlatDiv(FlatImm(total)::li)
+     | li -> FlatDiv(FlatImm(total)::li)
+    )
 ;;
+
+let optimize_flat_multiple_times tree =
+  let rec aux a prev =
+    if a = prev
+    then a
+    else (aux (optimize_flat a) a)
+  in
+  (aux (optimize_flat tree) tree);;
+
 
 let rec flat_to_ast = function
   | FlatImm(a) -> Imm(a)
@@ -244,6 +263,7 @@ let rec flat_to_ast = function
   | _ -> raise (AstGeneration "flat_to_ast empty list or something")
 ;;
 
+
 let rec generate_ast (symbols: expression): ast = match symbols with
   | SymExp([]) -> Imm(0)
   | SymNumber(n) -> Imm(int_of_string n)
@@ -259,7 +279,7 @@ let t1 = "1 + 2 + 3 + a" |> tokenize |> scan |> precedence_parens |> List.hd |> 
 let t2 = "1 + 2 * 3 + a" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
 let t3 = "1 + 2 * b * 3 + a - (4 / 2)" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
 let t4 = "1 + 2 + 3 + (a + 10 + 20)" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
-let t5 = "1 + 2 + 3" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
+let t5 = "1 + 2 - 5" |> tokenize |> scan |> precedence_parens |> List.hd |> generate_ast;;
 
 let test1 (expr: string) =
   let result = tokenize expr |> scan |> precedence_parens in

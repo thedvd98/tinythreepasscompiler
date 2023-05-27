@@ -15,7 +15,6 @@ type ast =
   | Div of (ast * ast) (* divide first by second *)
 
 type flat_ast =
-  | Empty
   | FlatImm of int
   | FlatArg of string
   | FlatAdd of (flat_ast list)
@@ -38,5 +37,6 @@ val precedence_parens : expression list -> expression list
 val flatten: ast -> flat_ast
 val flat_to_ast: flat_ast -> ast
 val optimize_flat: flat_ast -> flat_ast
+val optimize_flat_multiple_times: flat_ast -> flat_ast
 
 val string_of_ast: ast -> string
