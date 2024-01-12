@@ -68,7 +68,7 @@ let suite_optmize_ast =
   [ "0.", `Quick, test_optimize_ast "1 + 1 + 1" (Imm(3))
   ; "1.", `Quick, test_optimize_ast "a" (Arg("a"))
   ; "2.", `Quick, test_optimize_ast "a+b" (Add(Arg("a"), Arg("b")))
-  ; "3.", `Quick, test_optimize_ast "a + 1 +b" (ast_of_string "(a+(b+1))")
+  ; "3.", `Quick, test_optimize_ast "a + 1 +b" (ast_of_string "(a+(1+b))")
   ; "4.", `Quick, test_optimize_ast "(1 + 3) + a + 1 + c" (ast_of_string " (a + (c+5))")
   ; "5.", `Quick, test_optimize_ast "(1 * 3) + a + 1 + c" (ast_of_string "(a + (c+4))")
   ; "6.", `Quick, test_optimize_ast "(1 * 3 - b) + a + 1 + c" (ast_of_string "(1+((3-b)+(a+c)))")

@@ -194,48 +194,40 @@ let flat_imm_filter_out flat_li =
   in
   (List.filter f flat_li)
 
+let contains_only_imm flat_li =
+  let f = function
+    | FlatImm(_) -> true
+    | _ -> false
+  in
+  List.for_all f flat_li
+
 let rec optimize_flat = function
   | (FlatImm(_) | FlatArg(_) as e) -> e
   | FlatAdd(li) ->
-    let total = List.reduce (+) (flat_get_ints li) in
-    let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
-    (match remaining_list with
-     | [] -> FlatImm(total)
-     | [x] when total = 0 -> x
-     | li when total = 0 -> FlatAdd(li)
-     | li when total != 0 -> FlatAdd(FlatImm(total)::li)
-     | li -> FlatAdd(FlatImm(total)::li)
-    )
+    if (contains_only_imm li) then
+      let total = List.reduce (+) (flat_get_ints li) in
+      FlatImm(total)
+    else
+      FlatAdd(List.map optimize_flat li)
   | FlatMul(li) ->
-    let total = List.reduce (fun x y-> x*y) (flat_get_ints li) in
-    let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
-    (match remaining_list with
-     | [] -> FlatImm(total)
-     | [x] when total = 0 -> x
-     | li when total = 0 -> FlatMul(li)
-     | li when total != 0 -> FlatMul(FlatImm(total)::li)
-     | li -> FlatMul(FlatImm(total)::li)
-    )
+    if (contains_only_imm li) then
+      let total = List.reduce (fun x y-> x*y) (flat_get_ints li) in
+      FlatImm(total)
+    else
+      FlatMul(List.map optimize_flat li)
   | FlatSub(li) ->
-    let total = List.reduce (-) (flat_get_ints li) in
-    let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
-    (match remaining_list with
-     | [] -> FlatImm(total)
-     | [x] when total = 0 -> x
-     | li when total = 0 -> FlatSub(li)
-     | li when total != 0 -> FlatSub(FlatImm(total)::li)
-     | li -> FlatSub(FlatImm(total)::li)
-    )
+    if (contains_only_imm li) then
+      let total = List.reduce (-) (flat_get_ints li) in
+      FlatImm(total)
+    else
+      FlatSub(List.map optimize_flat li)
+
   | FlatDiv(li) ->
-    let total = List.reduce (/) (flat_get_ints li) in
-    let remaining_list = List.map optimize_flat (flat_imm_filter_out li) in
-    (match remaining_list with
-     | [] -> FlatImm(total)
-     | [x] when total = 0 -> x
-     | li when total = 0 -> FlatDiv(li)
-     | li when total != 0 -> FlatDiv(FlatImm(total)::li)
-     | li -> FlatDiv(FlatImm(total)::li)
-    )
+    if (contains_only_imm li) then
+      let total = List.reduce (/) (flat_get_ints li) in
+      FlatImm(total)
+    else
+      FlatDiv(List.map optimize_flat li)
 ;;
 
 let optimize_flat_multiple_times tree =
