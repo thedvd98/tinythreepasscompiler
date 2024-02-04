@@ -81,6 +81,7 @@ let suite_optmize_ast =
   ; "13.", `Quick, test_optimize_ast "2 * 20/2/2 + 1 * 4" (ast_of_string "14")
   ; "14.", `Quick, test_optimize_ast "a + 1 + 2" (ast_of_string "a + 3")
   ; "15.", `Quick, test_optimize_ast "1 + 2 + a" (ast_of_string "3 + a")
+  ; "16.", `Quick, test_optimize_ast "3 - 1 + 2 + a" (ast_of_string "4 + a")
   ]
 
 let () =

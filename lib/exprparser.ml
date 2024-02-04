@@ -7,6 +7,7 @@ module List = struct
     | [a] -> a
     | hd::tail -> List.fold_left op hd tail
 end;;
+
 let tokenize code =
   let rec explode string =
     if String.length string = 0 then []
@@ -93,7 +94,12 @@ let rec put_parens (tokens : expression list) (op: string) (op2: string) : expre
   | [SymOp("+");SymNumber(n)] -> [SymNumber(n)]
   | [SymOp(_);SymNumber(_)] -> raise (ParserError "strange")
 
-  | a::SymOp(x)::b::[] when x = op || x = op2->
+  (* cases for when there is a sign in front of a number*)
+  | SymOp("-")::SymNumber(n)::tail -> (put_parens (SymNumber("-"^n)::tail) op op2)
+  | SymOp("+")::SymNumber(n)::tail -> (put_parens (SymNumber(n)::tail) op op2)
+
+  (* generic cases *)
+  | a::SymOp(x)::b::[] when x = op || x = op2 ->
     [SymExp((put_parens [a] op op2) @ [SymOp(x)] @ (put_parens [b] op op2))]
   | a::SymOp(x)::b::[] when x != op && x != op2 ->
     (put_parens [a] op op2) @ [SymOp(x)] @ (put_parens [b] op op2)
@@ -203,12 +209,12 @@ let contains_only_imm flat_li =
 
 let rec optimize_flat = function
   | (FlatImm(_) | FlatArg(_) as e) -> e
-  | FlatAdd(li) ->
-    if (contains_only_imm li) then
+  | FlatAdd(li) when (contains_only_imm li)->
       let total = List.reduce (+) (flat_get_ints li) in
       FlatImm(total)
-    else
+  | FlatAdd(li) ->
       FlatAdd(List.map optimize_flat li)
+
   | FlatMul(li) ->
     if (contains_only_imm li) then
       let total = List.reduce (fun x y-> x*y) (flat_get_ints li) in
@@ -265,7 +271,7 @@ let rec generate_ast (symbols: expression): ast = match symbols with
   | SymExp(a::SymOp("*")::b::[]) -> Mul((generate_ast a), (generate_ast b))
   | SymExp(a::SymOp("/")::b::[]) -> Div((generate_ast a), (generate_ast b))
   | SymExp(a::SymOp("+")::b::[]) -> Add((generate_ast a), (generate_ast b))
-  | SymExp(a::SymOp("-")::b::[]) -> Sub((generate_ast a), (generate_ast b))
+  | SymExp(a::SymOp("-")::b::[]) -> Sub((generate_ast a), (generate_ast b))  (* TODO I could put Add and put a minux in fron of the second term in some way*)
   | SymExp(a::[]) -> (generate_ast a)
   | _ -> raise (AstGeneration "not recognized symbol in ast generation")
 
@@ -291,17 +297,17 @@ let rec optimize_ast (ast_tree: ast) = match ast_tree with
   | Div(Imm(a), Imm(b)) -> (Imm(a/b))
 
   | Add(Arg _, Arg _) as e -> e
-  | Add((Arg _ as a), b) -> Add(a, (optimize_ast b))
-  | Add(a, (Arg _ as b)) -> Add((optimize_ast a), b)
+  (* | Add((Arg _ as a), b) -> Add(a, (optimize_ast b)) *)
+  (* | Add(a, (Arg _ as b)) -> Add((optimize_ast a), b) *)
 
   | Sub(Arg _, Arg _) as e -> e
   | Mul(Arg _, Arg _) as e -> e
   | Div(Arg _, Arg _) as e -> e
 
-  | Add(a, b) -> optimize_ast (Add((optimize_ast a), (optimize_ast b)))
-  | Sub(a, b) -> optimize_ast (Sub((optimize_ast a), (optimize_ast b)))
-  | Mul(a, b) -> optimize_ast (Mul((optimize_ast a), (optimize_ast b)))
-  | Div(a, b) -> optimize_ast (Div((optimize_ast a), (optimize_ast b)))
+  | Add(a, b) -> (Add((optimize_ast a), (optimize_ast b)))
+  | Sub(a, b) -> (Sub((optimize_ast a), (optimize_ast b)))
+  | Mul(a, b) -> (Mul((optimize_ast a), (optimize_ast b)))
+  | Div(a, b) -> (Div((optimize_ast a), (optimize_ast b)))
 
 let test2 (expr: string) =
   let result = tokenize expr |> scan |> precedence_parens in
@@ -317,3 +323,31 @@ let rec string_of_ast(ast_tree: ast): string = match ast_tree with
   | Div(a, b) -> "("^(string_of_ast a) ^ "/" ^ (string_of_ast b)^")"
   | Add(a, b) -> "("^(string_of_ast a) ^ "+" ^ (string_of_ast b)^")"
   | Sub(a, b) -> "("^(string_of_ast a) ^ "-" ^ (string_of_ast b)^")"
+
+exception CompilerError of string
+
+module type COMPILER =
+sig
+  val pass1: string -> ast
+  val pass2: ast -> ast
+  val codeGen: ast -> string list
+  val compile: string -> string list 
+end
+
+
+module Compiler : COMPILER =
+struct
+  let pass1 code = 
+    tokenize code |> scan |> precedence_parens |> List.hd |> generate_ast
+
+  let pass2 ast =
+    flatten ast |> optimize_flat_multiple_times |> flat_to_ast
+
+
+  let codeGen ast = 
+    raise (CompilerError "codeGen: missing implementation")
+
+  let compile code =
+    codeGen(pass2(pass1 code))
+
+end
