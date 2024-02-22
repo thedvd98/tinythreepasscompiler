@@ -42,7 +42,7 @@ let tokenize code =
 
 type expression =
   | SymOp of string
-  | SymVar of string
+  | SymVar of int
   | SymNumber of string
   | SymExp of (expression list)
 
@@ -51,7 +51,7 @@ exception Optimization of string
 exception ParserError of string
 
 let is_number tk : bool=
-  List.fold_left (fun acc ch -> let code = Char.code ch in
+List.fold_left (fun acc ch -> let code = Char.code ch in
                    if (code >= 48 && code <= 57) || ch = '.' then (true && acc)
                    else false) true (tk |> String.to_seq |> List.of_seq);;
 
@@ -59,7 +59,9 @@ let is_variable tk : bool=
   List.fold_left (fun acc ch ->
       let code = Char.code ch in
       if (code >= 97 && code <= 122) || (code >= 65 && code <= 90) then (true && acc)
-      else false) true (tk |> String.to_seq |> List.of_seq);;
+      else false)
+    true
+    (tk |> String.to_seq |> List.of_seq);;
 
 let tail_after_closing_paren li =
   (* make it start from n = 1 *)
@@ -72,19 +74,35 @@ let tail_after_closing_paren li =
   in
   tail_from_corresponding_closed_paren li 1
 
+(*assume that it will find it*)
+let find_index element li =
+  let rec aux element li index = match li with
+    | hd::tail when element = hd -> index
+    | hd::tail -> (aux element tail (index + 1))
+    | [] -> index
+  in
+  (aux element li 0)
 
-let rec scan tokens = match tokens with
-  | [] -> []
-  | hd::tail when is_number hd -> SymNumber(hd)::(scan tail)
-  | hd::tail when is_variable hd -> SymVar(hd)::(scan tail)
-  | hd::tail when hd = "(" -> SymExp((scan tail))::(scan (tail_after_closing_paren tail))
-  | hd::_ when hd = ")" -> []
-  | hd::tail -> SymOp(hd)::(scan tail)
+let scan tokens =
+  let rec scan_aux tokens env = match tokens with
+    | [] -> []
+    | hd::tail when hd = "[" -> (scan_args tail [])
+    | hd::tail when is_number hd -> SymNumber(hd)::(scan_aux tail env)
+    | hd::tail when is_variable hd -> SymVar(find_index hd env)::(scan_aux tail env)
+    | hd::tail when hd = "(" -> SymExp((scan_aux tail env))::(scan_aux (tail_after_closing_paren tail) env)
+    | hd::_ when hd = ")" -> []
+    | hd::tail -> SymOp(hd)::(scan_aux tail env)
+  and scan_args tokens env = match tokens with
+    | hd::tail when hd = "]" -> (scan_aux tail env)
+    | hd::tail -> (scan_args tail (env@[hd]))
+    | [] -> []
+  in
+  (scan_aux tokens [])
 
 let rec put_parens (tokens : expression list) (op: string) (op2: string) : expression list = match tokens with
-  | [] -> []
-  | [SymExp(sub_exp)] ->
-    (match (put_parens sub_exp op op2) with
+| [] -> []
+| [SymExp(sub_exp)] ->
+(match (put_parens sub_exp op op2) with
      | [SymExp(_)] as exp -> exp
      | ([] | _ as x) -> [SymExp(x)])
 
@@ -122,7 +140,7 @@ let precedence_parens (symbols: expression list) =
 let rec string_of_expr (expr : expression list): string = match expr with
   | [] -> ""
   | SymNumber(x)::tail -> x^(string_of_expr tail)
-  | SymVar(x)::tail -> x^(string_of_expr tail)
+  | SymVar(x)::tail -> "Arg("^(string_of_int x)^")"^(string_of_expr tail)
   | SymOp(x)::tail -> x^(string_of_expr tail)
   | SymExp(x)::tail -> "("^(string_of_expr x)^")"^(string_of_expr tail)
 
@@ -132,7 +150,7 @@ let test (expr: string) :string =
 
 type ast =
   | Imm of int  (* immediate value *)
-  | Arg of string (* reference to n-th argument *)
+  | Arg of int (* reference to n-th argument *)
   | Add of (ast * ast) (* add first to second *)
   | Sub of (ast * ast) (* subtract second from first *)
   | Mul of (ast * ast) (* multiply first by second *)
@@ -140,7 +158,7 @@ type ast =
 
 type flat_ast =
   | FlatImm of int
-  | FlatArg of string
+  | FlatArg of int
   | FlatAdd of (flat_ast list)
   | FlatMul of (flat_ast list)
   | FlatSub of (flat_ast list)
@@ -304,10 +322,38 @@ let rec optimize_ast (ast_tree: ast) = match ast_tree with
   | Mul(Arg _, Arg _) as e -> e
   | Div(Arg _, Arg _) as e -> e
 
+  | Add (Add(Arg(x), Imm(a)), Imm(b)) -> (Add (Arg (x), ((Imm (a+b)))))
+  | Add (Add(Imm(a), Arg(x)), Imm(b)) -> (Add (Arg (x), ((Imm (a+b)))))
+  | Add (Imm(a), Add(Arg (x), Imm(b))) -> (Add ((Imm (a+b)), Arg (x)))
+  | Add (Imm(a), Add(Imm (b), Arg(x))) -> (Add ((Imm (a+b)), Arg (x)))
   | Add(a, b) -> (Add((optimize_ast a), (optimize_ast b)))
+
+  | Sub (Sub(Arg(x), Imm(a)), Imm(b)) -> (Sub (Arg (x), ((Imm (a-b)))))
+  | Sub (Sub(Imm(a), Arg(x)), Imm(b)) -> (Sub ((Imm (a-b)), Arg (x)))
+  | Sub (Imm(a), Sub(Arg (x), Imm(b))) -> (Sub ((Imm (a-b)), Arg (x)))
+  | Sub (Imm(a), Sub(Imm (b), Arg(x))) -> (Sub ((Imm (a-b)), Arg (x)))
   | Sub(a, b) -> (Sub((optimize_ast a), (optimize_ast b)))
+
+  | Mul (Mul(Arg(x), Imm(a)), Imm(b)) -> (Mul (Arg (x), ((Imm (a*b)))))
+  | Mul (Mul(Imm(a), Arg(x)), Imm(b)) -> (Mul ((Imm (a*b)), Arg (x)))
+  | Mul (Imm(a), Mul(Arg (x), Imm(b))) -> (Mul ((Imm (a*b)), Arg (x)))
+  | Mul (Imm(a), Mul(Imm (b), Arg(x))) -> (Mul ((Imm (a*b)), Arg (x)))
   | Mul(a, b) -> (Mul((optimize_ast a), (optimize_ast b)))
+
+  | Div (Div(Arg(x), Imm(a)), Imm(b)) -> (Div (Arg (x), ((Imm (a/b)))))
+  | Div (Div(Imm(a), Arg(x)), Imm(b)) -> (Div ((Imm (a/b)), Arg (x)))
+  | Div (Imm(a), Div(Arg (x), Imm(b))) -> (Div ((Imm (a/b)), Arg (x)))
+  | Div (Imm(a), Div(Imm (b), Arg(x))) -> (Div ((Imm (a/b)), Arg (x)))
   | Div(a, b) -> (Div((optimize_ast a), (optimize_ast b)))
+
+let optimize_ast_multiple_times tree =
+  let rec aux a prev =
+    if a = prev
+    then a
+    else (aux (optimize_ast a) a)
+  in
+  (aux (optimize_ast tree) tree);;
+
 
 let test2 (expr: string) =
   let result = tokenize expr |> scan |> precedence_parens in
@@ -318,7 +364,7 @@ let test2 (expr: string) =
   )
 let rec string_of_ast(ast_tree: ast): string = match ast_tree with
   | Imm(x) -> string_of_int x
-  | Arg(x) -> x
+  | Arg(x) -> "Arg("^(string_of_int x)^")"
   | Mul(a, b) -> "("^(string_of_ast a) ^ "*" ^ (string_of_ast b)^")"
   | Div(a, b) -> "("^(string_of_ast a) ^ "/" ^ (string_of_ast b)^")"
   | Add(a, b) -> "("^(string_of_ast a) ^ "+" ^ (string_of_ast b)^")"
@@ -341,7 +387,7 @@ struct
     tokenize code |> scan |> precedence_parens |> List.hd |> generate_ast
 
   let pass2 ast =
-    flatten ast |> optimize_flat_multiple_times |> flat_to_ast
+    optimize_ast_multiple_times ast
 
 
   let codeGen ast = 

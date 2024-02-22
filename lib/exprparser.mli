@@ -1,14 +1,14 @@
 val tokenize : string -> string list
 type expression =
   | SymOp of string
-  | SymVar of string
+  | SymVar of int
   | SymNumber of string
   | SymExp of expression list
 ;;
 
 type ast =
   | Imm of int  (* immediate value *)
-  | Arg of string (* reference to n-th argument *)
+  | Arg of int (* reference to n-th argument *)
   | Add of (ast * ast) (* add first to second *)
   | Sub of (ast * ast) (* subtract second from first *)
   | Mul of (ast * ast) (* multiply first by second *)
@@ -16,7 +16,7 @@ type ast =
 
 type flat_ast =
   | FlatImm of int
-  | FlatArg of string
+  | FlatArg of int
   | FlatAdd of (flat_ast list)
   | FlatMul of (flat_ast list)
   | FlatSub of (flat_ast list)
@@ -38,5 +38,6 @@ val flatten: ast -> flat_ast
 val flat_to_ast: flat_ast -> ast
 val optimize_flat: flat_ast -> flat_ast
 val optimize_flat_multiple_times: flat_ast -> flat_ast
+val optimize_ast_multiple_times: ast -> ast
 
 val string_of_ast: ast -> string
