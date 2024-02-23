@@ -315,9 +315,6 @@ let rec optimize_ast (ast_tree: ast) = match ast_tree with
   | Div(Imm(a), Imm(b)) -> (Imm(a/b))
 
   | Add(Arg _, Arg _) as e -> e
-  (* | Add((Arg _ as a), b) -> Add(a, (optimize_ast b)) *)
-  (* | Add(a, (Arg _ as b)) -> Add((optimize_ast a), b) *)
-
   | Sub(Arg _, Arg _) as e -> e
   | Mul(Arg _, Arg _) as e -> e
   | Div(Arg _, Arg _) as e -> e
@@ -370,6 +367,14 @@ let rec string_of_ast(ast_tree: ast): string = match ast_tree with
   | Add(a, b) -> "("^(string_of_ast a) ^ "+" ^ (string_of_ast b)^")"
   | Sub(a, b) -> "("^(string_of_ast a) ^ "-" ^ (string_of_ast b)^")"
 
+let rec generate_code = function
+  | Imm(x) -> ["IM "^(string_of_int x)]
+  | Arg(x) -> ["AR "^(string_of_int x)]
+  | Add(a, b) -> (generate_code b) @ ["PU"] @ (generate_code a) @ ["SW"; "PO"; "AD"]
+  | Sub(a, b) -> (generate_code a) @ ["PU"] @ (generate_code b) @ ["SW"; "PO"; "SU"]
+  | Mul(a, b) -> (generate_code b) @ ["PU"] @ (generate_code a) @ ["SW"; "PO"; "MU"]
+  | Div(a, b) -> (generate_code a) @ ["PU"] @ (generate_code b) @ ["SW"; "PO"; "DI"]
+
 exception CompilerError of string
 
 module type COMPILER =
@@ -391,7 +396,7 @@ struct
 
 
   let codeGen ast = 
-    raise (CompilerError "codeGen: missing implementation")
+    generate_code ast
 
   let compile code =
     codeGen(pass2(pass1 code))
